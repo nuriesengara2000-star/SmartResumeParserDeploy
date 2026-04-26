@@ -1,0 +1,64 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install ruff
+      - run: ruff check app/ tests/
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - run: pip install pytest anyio httpx
+      - run: pytest tests/ -v
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+
+  build:
+    needs: [lint, test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t genai-api .
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bervProject/railway-deploy@main
+        with:
+          railway_token: ${{ secrets.RAILWAY_TOKEN }}
+          service: ${{ secrets.RAILWAY_SERVICE }}
+
+  smoke-test:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for deployment
+        run: sleep 30
+      - name: Check health endpoint
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.DEPLOY_URL }}/health)
+          if [ "$STATUS" != "200" ]; then
+            echo "Health check failed with status $STATUS"
+            exit 1
+          fi
+          echo "Health check passed!"
+      - name: Check root endpoint
+        run: |
+          curl -s ${{ secrets.DEPLOY_URL }}/ | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'service' in d; print('Root OK:', d)"
