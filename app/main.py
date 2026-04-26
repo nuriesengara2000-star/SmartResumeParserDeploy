@@ -5,12 +5,10 @@ import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
-from fastapi.responses import HTMLResponse, RedirectResponse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.inference import inference_engine
 from app.models import (
@@ -34,7 +32,6 @@ SERVICE_VERSION = "1.0.0"
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Загрузка модели при старте и очистка при завершении."""
     logger.info("Запуск приложения — инициализация модели…")
     try:
         inference_engine.load()
@@ -42,9 +39,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as exc:
         logger.error("Не удалось инициализировать модель: %s", exc)
         raise
-
     yield
-
     logger.info("Завершение приложения — очистка ресурсов…")
     await inference_engine.close()
     logger.info("Ресурсы освобождены.")
@@ -52,10 +47,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 
 app = FastAPI(
     title="GenAI API",
-    description=(
-        "Production API для генерации текста с помощью дообученной LLM. "
-        "Контейнеризовано и развёрнуто через CI/CD."
-    ),
+    description="Production API для генерации текста с помощью дообученной LLM.",
     version=SERVICE_VERSION,
     lifespan=lifespan,
 )
@@ -69,9 +61,7 @@ app.add_middleware(
 )
 
 
-# --- Graceful shutdown ---
 def handle_sigterm(*_args) -> None:
-    """Корректная обработка SIGTERM от Docker/Railway."""
     logger.info("Получен SIGTERM, завершаю работу…")
     raise SystemExit(0)
 
@@ -81,25 +71,31 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 
 # --- Эндпоинты ---
 
-
 @app.get("/", include_in_schema=False)
 async def root():
-    """Редирект на чат-интерфейс."""
     return RedirectResponse(url="/chat")
 
 
-@app.get(
-    "/info",
-    response_model=ServiceInfoResponse,
-    summary="Информация о сервисе",
-)
+@app.get("/info", response_model=ServiceInfoResponse, summary="Информация о сервисе")
 async def info() -> ServiceInfoResponse:
-    """Возвращает название, версию и описание сервиса."""
     return ServiceInfoResponse(
         service="GenAI API",
         version=SERVICE_VERSION,
         description="Fine-tuned LLM inference API",
     )
+
+
+@app.get("/health", response_model=HealthResponse, summary="Проверка работоспособности")
+async def health() -> HealthResponse:
+    return HealthResponse(status="ok")
+
+
+@app.get("/chat", response_class=HTMLResponse, summary="Веб-интерфейс чата")
+async def chat_ui() -> HTMLResponse:
+    html_path = STATIC_DIR / "index.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+
+
 @app.post(
     "/generate",
     response_model=GenerateResponse,
@@ -110,10 +106,8 @@ async def info() -> ServiceInfoResponse:
     },
 )
 async def generate(request: GenerateRequest) -> GenerateResponse:
-    """Принимает промпт и возвращает сгенерированный текст."""
     if not inference_engine.is_loaded:
         raise HTTPException(status_code=500, detail="Модель не загружена")
-
     try:
         result = await inference_engine.generate(
             prompt=request.prompt,
@@ -121,10 +115,7 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
         )
     except Exception as exc:
         logger.exception("Ошибка при генерации: %s", exc)
-        raise HTTPException(
-            status_code=500,
-            detail=f"Внутренняя ошибка модели: {exc}",
-        )
+        raise HTTPException(status_code=500, detail=f"Внутренняя ошибка модели: {exc}")
 
     return GenerateResponse(
         prompt=request.prompt,
@@ -132,10 +123,3 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
         model=result["model"],
         tokens_used=result["tokens_used"],
     )
-
-
-@app.get("/chat", response_class=HTMLResponse, summary="Веб-интерфейс чата")
-async def chat_ui() -> HTMLResponse:
-    """Отдаёт встроенный чат-интерфейс."""
-    html_path = STATIC_DIR / "index.html"
-    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
