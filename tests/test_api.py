@@ -26,15 +26,11 @@ async def client():
 
 
 @pytest.mark.anyio
+@pytest.mark.anyio
 async def test_root(client: AsyncClient) -> None:
-    """Тест корневого эндпоинта /."""
-    response = await client.get("/")
-    assert response.status_code == 200
-    data = response.json()
-    assert "service" in data
-    assert "version" in data
-    assert "description" in data
-    assert data["service"] == "GenAI API"
+    """Тест корневого эндпоинта / — редирект на /chat."""
+    response = await client.get("/", follow_redirects=False)
+    assert response.status_code == 307
 
 
 @pytest.mark.anyio
@@ -107,3 +103,14 @@ async def test_generate_invalid_max_tokens(client: AsyncClient) -> None:
         json={"prompt": "Hello", "max_tokens": 9999},
     )
     assert response.status_code == 422
+
+@pytest.mark.anyio
+async def test_info(client: AsyncClient) -> None:
+    """Тест /info — информация о сервисе."""
+    response = await client.get("/info")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["service"] == "GenAI API"
+    assert "version" in data
+    assert "description" in data
+

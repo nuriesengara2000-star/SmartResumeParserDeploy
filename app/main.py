@@ -123,3 +123,4 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
         model=result["model"],
         tokens_used=result["tokens_used"],
     )
+
