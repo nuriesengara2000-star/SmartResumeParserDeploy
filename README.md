@@ -57,7 +57,7 @@ docker run -p 8000:8000 -e HF_TOKEN=hf_your_token genai-api
 
 ## 6. Ссылка на деплой
 
-> **Публичный URL**: `https://YOUR_APP.up.railway.app`
+> **Публичный URL**: `https://smartresumeparserdeploy-production.up.railway.app`
 >
 > *(обновите после деплоя на Railway)*
 
