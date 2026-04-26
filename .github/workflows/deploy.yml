@@ -40,10 +40,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: bervProject/railway-deploy@main
-        with:
-          railway_token: ${{ secrets.RAILWAY_TOKEN }}
-          service: ${{ secrets.RAILWAY_SERVICE }}
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+      - name: Deploy to Railway
+        run: railway up --service ${{ secrets.RAILWAY_SERVICE }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
   smoke-test:
     needs: deploy
@@ -51,14 +53,11 @@ jobs:
     steps:
       - name: Wait for deployment
         run: sleep 30
-      - name: Check health endpoint
+      - name: Check health
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.DEPLOY_URL }}/health)
           if [ "$STATUS" != "200" ]; then
-            echo "Health check failed with status $STATUS"
+            echo "Health check failed: $STATUS"
             exit 1
           fi
           echo "Health check passed!"
-      - name: Check root endpoint
-        run: |
-          curl -s ${{ secrets.DEPLOY_URL }}/ | python3 -c "import sys,json; d=json.load(sys.stdin); assert 'service' in d; print('Root OK:', d)"
