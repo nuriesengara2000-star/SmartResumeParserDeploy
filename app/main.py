@@ -3,10 +3,13 @@
 import logging
 import signal
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.inference import inference_engine
 from app.models import (
@@ -16,6 +19,8 @@ from app.models import (
     HealthResponse,
     ServiceInfoResponse,
 )
+
+STATIC_DIR = Path(__file__).parent / "static"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -132,3 +137,10 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
         model=result["model"],
         tokens_used=result["tokens_used"],
     )
+
+
+@app.get("/chat", response_class=HTMLResponse, summary="Веб-интерфейс чата")
+async def chat_ui() -> HTMLResponse:
+    """Отдаёт встроенный чат-интерфейс."""
+    html_path = STATIC_DIR / "index.html"
+    return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
