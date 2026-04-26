@@ -1,4 +1,4 @@
-name: Deploy to Railway
+name: CI/CD Pipeline
 
 on:
   push:
@@ -35,29 +35,17 @@ jobs:
       - uses: actions/checkout@v4
       - run: docker build -t genai-api .
 
-  deploy:
+  smoke-test:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install Railway CLI
-        run: npm install -g @railway/cli
-      - name: Deploy to Railway
-        run: railway up --service ${{ secrets.RAILWAY_SERVICE }}
-        env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-
-  smoke-test:
-    needs: deploy
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for deployment
-        run: sleep 30
+      - name: Wait for Railway deploy
+        run: sleep 60
       - name: Check health
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" ${{ secrets.DEPLOY_URL }}/health)
-          if [ "$STATUS" != "200" ]; then
-            echo "Health check failed: $STATUS"
-            exit 1
-          fi
+          echo "Health status: $STATUS"
+          if [ "$STATUS" != "200" ]; then exit 1; fi
           echo "Health check passed!"
+      - name: Check info
+        run: curl -s ${{ secrets.DEPLOY_URL }}/info
