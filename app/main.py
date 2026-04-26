@@ -5,6 +5,7 @@ import signal
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import AsyncIterator
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -81,30 +82,24 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 # --- Эндпоинты ---
 
 
+@app.get("/", include_in_schema=False)
+async def root():
+    """Редирект на чат-интерфейс."""
+    return RedirectResponse(url="/chat")
+
+
 @app.get(
-    "/",
+    "/info",
     response_model=ServiceInfoResponse,
     summary="Информация о сервисе",
 )
-async def root() -> ServiceInfoResponse:
+async def info() -> ServiceInfoResponse:
     """Возвращает название, версию и описание сервиса."""
     return ServiceInfoResponse(
         service="GenAI API",
         version=SERVICE_VERSION,
         description="Fine-tuned LLM inference API",
     )
-
-
-@app.get(
-    "/health",
-    response_model=HealthResponse,
-    summary="Проверка работоспособности",
-)
-async def health() -> HealthResponse:
-    """Health check для Docker и облачной платформы."""
-    return HealthResponse(status="ok")
-
-
 @app.post(
     "/generate",
     response_model=GenerateResponse,
